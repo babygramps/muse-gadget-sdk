@@ -346,4 +346,16 @@ menu "ESP32 Device SDK"
             for it and saves none of the SDK's own Wi-Fi settings. Once paired,
             the SDK reaches the VM whenever the project reports a connection.
 
+    config HOMEHUB_SETUP_WINDOW_S
+        int "Seconds an unpaired device advertises for setup (0: always)"
+        range 0 86400
+        default 0
+        help
+            0 keeps advertising for as long as the device is unpaired. Any
+            other value closes the setup window that many seconds after boot,
+            a short button press or app_open_setup_window(); the next of those
+            opens it again. A phone already connected keeps its session.
+            With HOMEHUB_WIFI_EXTERNAL, nothing advertises while the enclosing
+            project reports its SoftAP up, whatever this value.
+
 endmenu

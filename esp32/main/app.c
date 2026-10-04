@@ -150,6 +150,14 @@ enum scan_refresh_flag {
 };
 static atomic_uint s_scan_refresh_flags = ATOMIC_VAR_INIT(0);
 
+// Unpaired setup advertising is on: from enter_advertising_state() until it is
+// paused or setup completes.
+static atomic_bool s_setup_advertising = ATOMIC_VAR_INIT(false);
+#if CONFIG_HOMEHUB_SETUP_WINDOW_S > 0
+// Uptime in seconds when the current setup window closes; 0 before one opens.
+static atomic_uint s_setup_window_closes_s = ATOMIC_VAR_INIT(0);
+#endif
+
 // Pairing progress (idle->wifi->auth->vm->done, or failed); logged + heartbeat.
 static const char *s_setup_stage = "idle";
 
@@ -674,6 +682,7 @@ static bool complete_setup_and_stop_ble(const char *reason, uint32_t session_gen
     setup_window_lock_take();
     advance_confirm_generation_locked();
     setup_window_lock_give();
+    atomic_store(&s_setup_advertising, false);
     if (!s_ble_started) return true;
     ESP_LOGI(TAG, "setup complete via %s; stopping BLE", reason);
     if (xTaskCreate(shutdown_ble_task, "ble_stop", 4096, NULL, 4, NULL) != pdPASS) {
@@ -1942,13 +1951,49 @@ static cJSON *on_ws_command(
 // Re-enter the always-on advertising state used while the device is unpaired.
 // Devices remain discoverable during setup; a session-bound button press
 // confirms pairing before provisioning commands are accepted.
+#if CONFIG_HOMEHUB_SETUP_WINDOW_S > 0
+static uint32_t uptime_s(void) {
+    return (uint32_t)(esp_timer_get_time() / 1000000);
+}
+#endif
+
+// Unpaired advertising stays off once the setup window has closed
+// (CONFIG_HOMEHUB_SETUP_WINDOW_S), and while the enclosing project's SoftAP is
+// up: SoftAP with a client plus BLE is unstable, and the device is offline then.
+static bool setup_advertising_blocked(void) {
+#if CONFIG_HOMEHUB_WIFI_EXTERNAL
+    if (wifi_mgr_ap_active()) return true;
+#endif
+#if CONFIG_HOMEHUB_SETUP_WINDOW_S > 0
+    uint32_t closes = atomic_load(&s_setup_window_closes_s);
+    if (closes == 0 || uptime_s() >= closes) return true;
+#endif
+    return false;
+}
+
+// Stops unpaired advertising until the setup window reopens.
+static void pause_setup_advertising(const char *reason) {
+    ESP_LOGI(TAG, "%s - not advertising", reason);
+    atomic_store(&s_setup_advertising, false);
+    setup_stage_set("idle");
+    ui_set_ble("idle");
+    ui_set_status("pairing_closed");
+    led_status_set_state(LED_STATE_SETUP_IDLE);
+    ble_server_stop_advertising(false);
+}
+
 static void enter_advertising_state(const char *reason) {
     if (config_setup_complete()) return;
+    if (setup_advertising_blocked()) {
+        pause_setup_advertising(reason);
+        return;
+    }
     ESP_LOGI(TAG, "%s - advertising (always on while unpaired)", reason);
     setup_stage_set("advertising");
     ui_set_ble("advertising");
     ui_set_status("pairing_advertising");
     led_status_set_state(LED_STATE_BLE_ADVERTISING);
+    atomic_store(&s_setup_advertising, ble_server_is_started());
     ble_server_begin_advertising();
 }
 
@@ -2067,13 +2112,22 @@ static void on_client_disconnected(void) {
 
     setup_window_lock_take();
     advance_confirm_generation_locked();
-    // Always fall back to advertising while unpaired. Keep this UI update
-    // serialized with confirmation workers; advertising itself runs unlocked.
-    setup_stage_set("advertising");
-    ui_set_ble("advertising");
-    ui_set_status("pairing_advertising");
-    led_status_set_state(LED_STATE_BLE_ADVERTISING);
+    bool blocked = setup_advertising_blocked();
+    if (!blocked) {
+        // Fall back to advertising while unpaired and the setup window is
+        // open. Keep this UI update serialized with confirmation workers;
+        // advertising itself runs unlocked.
+        setup_stage_set("advertising");
+        ui_set_ble("advertising");
+        ui_set_status("pairing_advertising");
+        led_status_set_state(LED_STATE_BLE_ADVERTISING);
+        atomic_store(&s_setup_advertising, true);
+    }
     setup_window_lock_give();
+    if (blocked) {
+        pause_setup_advertising("BLE client left");
+        return;
+    }
     ble_server_begin_advertising();
 }
 
@@ -2101,9 +2155,31 @@ static void open_setup_window(const char *reason) {
         return;
     }
 
+#if CONFIG_HOMEHUB_SETUP_WINDOW_S > 0
+    atomic_store(&s_setup_window_closes_s, uptime_s() + CONFIG_HOMEHUB_SETUP_WINDOW_S);
+#endif
     start_ble_setup_server_if_needed();
     enter_advertising_state(reason);
 }
+
+#if CONFIG_HOMEHUB_SETUP_WINDOW_S > 0 || CONFIG_HOMEHUB_WIFI_EXTERNAL
+// From the heartbeat: pauses unpaired advertising once the setup window closes
+// or the SoftAP comes up, and resumes it when the SoftAP goes down while the
+// window is still open. A phone in the middle of setup keeps its session.
+static void update_setup_advertising(void) {
+    if (config_setup_complete() || !ble_server_is_started()
+        || ble_server_has_connection()) {
+        return;
+    }
+    bool advertising = atomic_load(&s_setup_advertising);
+    bool blocked = setup_advertising_blocked();
+    if (advertising && blocked) {
+        pause_setup_advertising("setup window closed");
+    } else if (!advertising && !blocked) {
+        enter_advertising_state("setup window reopened");
+    }
+}
+#endif
 
 static void on_button_short_press(void) {
     factory_test_on_button_press();
@@ -2792,6 +2868,9 @@ void app_run(void) {
 #endif
 #if CONFIG_HOMEHUB_WIFI_EXTERNAL
         keep_vm_session_external();
+#endif
+#if CONFIG_HOMEHUB_SETUP_WINDOW_S > 0 || CONFIG_HOMEHUB_WIFI_EXTERNAL
+        update_setup_advertising();
 #endif
 
         // Runs on every heartbeat tick, and does two things.
