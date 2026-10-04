@@ -20,6 +20,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void app_run(void);
 
 // How joining one of the saved Wi-Fi networks went.
@@ -65,4 +69,8 @@ void app_reset_setup_async(void);
 // for the preferred VM). *vm_token is heap; free() it.
 bool app_hatch_vm_credentials(const char *want_vm, char *vm_id, size_t id_cap,
                               char *vm_name, size_t name_cap, char **vm_token);
+#endif
+
+#ifdef __cplusplus
+}
 #endif

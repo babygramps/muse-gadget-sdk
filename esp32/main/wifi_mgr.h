@@ -22,6 +22,10 @@
 
 #include "esp_netif.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
     char ssid[33];
     int8_t rssi;
@@ -95,3 +99,7 @@ void wifi_mgr_set_provider(const wifi_provider_t *provider);
 bool wifi_mgr_ap_active(void);
 // Copies the current network's name out while connected; false and "" if not.
 bool wifi_mgr_current_ssid(char *out, size_t len);
+
+#ifdef __cplusplus
+}
+#endif
