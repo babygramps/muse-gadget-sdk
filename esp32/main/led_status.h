@@ -39,6 +39,8 @@ typedef enum {
 
 bool led_status_init(void);
 void led_status_set_state(led_state_t state);
+// The state last set (LED_STATE_BOOT before init, and on the Muse display).
+led_state_t led_status_get_state(void);
 // Show a short title (the agent's name) on backends with a display; NULL or ""
 // clears it. Other backends ignore it.
 void led_status_set_title(const char *title);

@@ -158,6 +158,9 @@ static atomic_bool s_setup_advertising = ATOMIC_VAR_INIT(false);
 static atomic_uint s_setup_window_closes_s = ATOMIC_VAR_INIT(0);
 #endif
 
+// The enclosing project's idle check (app_set_idle_check); NULL is always idle.
+static bool (*volatile s_idle_check)(void) = NULL;
+
 // Pairing progress (idle->wifi->auth->vm->done, or failed); logged + heartbeat.
 static const char *s_setup_stage = "idle";
 
@@ -698,8 +701,23 @@ static bool complete_setup_and_stop_ble(const char *reason, uint32_t session_gen
     return true;
 }
 
+// Whether the enclosing project allows a reboot or setup reset now; always,
+// without an idle check.
+static bool app_is_idle(void) {
+    bool (*idle)(void) = s_idle_check;
+    return !idle || idle();
+}
+
 static void restart_task(void *arg) {
     (void)arg;
+    // A setup reset has already closed the session and cleared the keys; the
+    // reboot that reopens setup waits until the enclosing project is idle.
+    if (!app_is_idle()) {
+        ESP_LOGW(TAG, "reboot deferred until the device is idle");
+        do {
+            vTaskDelay(pdMS_TO_TICKS(1000));
+        } while (!app_is_idle());
+    }
     vTaskDelay(pdMS_TO_TICKS(500));
     stack_monitor_record(NULL);
     esp_restart();
@@ -2210,6 +2228,18 @@ static void on_button_double_press(void) {
 }
 
 static void on_button_long_press(void) {
+    if (!app_is_idle()) {
+        // Refused while the enclosing project is busy: blink yellow three
+        // times (1 s each), then show the previous state again.
+        ESP_LOGW(TAG, "button long-press refused; the device is busy");
+        led_state_t previous = led_status_get_state();
+        led_status_set_state(LED_STATE_WS_DISCONNECTED);
+        vTaskDelay(pdMS_TO_TICKS(3000));
+        if (led_status_get_state() == LED_STATE_WS_DISCONNECTED) {
+            led_status_set_state(previous);
+        }
+        return;
+    }
     reset_setup_from_control("button long-press");
 }
 
@@ -2552,6 +2582,50 @@ static void ota_verify_task(void *arg) {
     }
     stack_monitor_record(NULL);
     vTaskDelete(NULL);
+}
+
+// ---- Enclosing project API (app.h) ------------------------------------------
+
+void app_set_idle_check(bool (*idle)(void)) {
+    s_idle_check = idle;
+}
+
+void app_get_gadget_status(app_gadget_status_t *out) {
+    if (!out) return;
+    out->paired = config_setup_complete() && config_is_provisioned();
+    out->connected = noise_ctrl_is_connected();
+    out->setup_window_open = !out->paired && atomic_load(&s_setup_advertising);
+}
+
+static void host_setup_window_task(void *arg) {
+    (void)arg;
+    open_setup_window("host request");
+    stack_monitor_record(NULL);
+    vTaskDelete(NULL);
+}
+
+void app_open_setup_window(void) {
+    if (config_setup_complete()) return;
+    if (xTaskCreate(host_setup_window_task, "setup_open", 4096, NULL, 4, NULL)
+        != pdPASS) {
+        ESP_LOGW(TAG, "setup window request dropped: no memory for its task");
+    }
+}
+
+static void host_unpair_task(void *arg) {
+    (void)arg;
+    reset_setup_from_control("host unpair request");
+    stack_monitor_record(NULL);
+    vTaskDelete(NULL);
+}
+
+void app_request_unpair(void) {
+    if (!config_setup_complete() && !config_is_provisioned()) return;
+    if (xTaskCreate(host_unpair_task, "host_unpair", 4096, NULL, 4, NULL)
+        != pdPASS) {
+        // The heartbeat runs the same reset.
+        atomic_store_explicit(&s_setup_reset_pending, true, memory_order_release);
+    }
 }
 
 // ---- Heap snapshot helper ---------------------------------------------------

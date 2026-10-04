@@ -599,6 +599,14 @@ void led_status_set_state(led_state_t state) {
     if (changed) xTaskNotifyGive(s_task);
 }
 
+led_state_t led_status_get_state(void) {
+    if (!s_ready) return LED_STATE_BOOT;
+    xSemaphoreTake(s_mutex, portMAX_DELAY);
+    led_state_t state = s_state;
+    xSemaphoreGive(s_mutex);
+    return state;
+}
+
 void led_status_set_title(const char *title) {
     if (!s_ready) return;
     xSemaphoreTake(s_mutex, portMAX_DELAY);

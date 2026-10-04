@@ -34,6 +34,33 @@ typedef enum {
     APP_WIFI_BUSY,          // another setup operation had the radio
 } app_wifi_join_t;
 
+// ---- For a project that builds this SDK into its own firmware ----
+// All are safe from any task.
+
+// Decides when the SDK may reboot or reset setup: it returns false while the
+// project is busy. NULL (the default) means always idle, which is upstream
+// behavior. While busy, a server or host unpair and a revoked device token
+// clear the pairing keys and close the session at once, and the reboot that
+// reopens setup waits, checked once a second; the 5 s button hold is refused
+// and the status LED blinks yellow three times.
+void app_set_idle_check(bool (*idle)(void));
+
+typedef struct {
+    bool paired;            // setup_complete and tokens present
+    bool connected;         // Muse control session up
+    bool setup_window_open; // advertising for pairing right now
+} app_gadget_status_t;
+void app_get_gadget_status(app_gadget_status_t *out);
+
+// Opens the pairing window like a short button press, without confirming a
+// pending pairing (that still takes the button); no-op when paired.
+void app_open_setup_window(void);
+
+// Guarded unpair: clears the SDK's pairing keys and closes the session now;
+// the reboot that reopens setup waits until the idle check passes. No-op when
+// not paired.
+void app_request_unpair(void);
+
 #if CONFIG_MUSE_ENABLED
 // Muse (muse_glue.c) drives setup through these; all are safe from any task.
 
