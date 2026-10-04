@@ -43,6 +43,8 @@ enum {
     for ((element) = ((array) ? (array)->child : NULL); (element); (element) = (element)->next)
 
 cJSON *cJSON_ParseWithLength(const char *value, size_t buffer_length);
+cJSON *cJSON_ParseWithOpts(const char *value, const char **return_parse_end,
+                           int require_null_terminated);
 void cJSON_Delete(cJSON *item);
 
 cJSON *cJSON_CreateObject(void);

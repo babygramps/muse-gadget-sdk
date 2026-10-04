@@ -307,6 +307,21 @@ cJSON *cJSON_ParseWithLength(const char *value, size_t buffer_length) {
     return root;
 }
 
+// Like the real library: trailing text is only an error when asked for.
+cJSON *cJSON_ParseWithOpts(const char *value, const char **return_parse_end,
+                           int require_null_terminated) {
+    if (!value) return NULL;
+    parser_t p = {.cur = value, .end = value + strlen(value)};
+    cJSON *root = parse_value(&p);
+    skip_ws(&p);
+    if (root && require_null_terminated && p.cur != p.end) {
+        cJSON_Delete(root);
+        root = NULL;
+    }
+    if (return_parse_end) *return_parse_end = p.cur;
+    return root;
+}
+
 void cJSON_Delete(cJSON *item) {
     while (item) {
         cJSON *next = item->next;

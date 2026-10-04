@@ -16,7 +16,9 @@
 
 // Commands the enclosing project adds with noise_ctrl_add_commands(). The
 // table is filled before app_run() and only read afterwards, by the session
-// task, so it needs no lock.
+// task, so it needs no lock. Calling noise_ctrl_add_commands() after app_run()
+// is unsupported: a session already registered would not advertise the new
+// commands until it reconnects.
 
 #include "command_registry.h"
 
@@ -83,7 +85,7 @@ static bool valid_param_group(const cJSON *group) {
 
 static bool valid_params(const char *params_json) {
     if (!params_json) return true;
-    cJSON *root = cJSON_ParseWithLength(params_json, strlen(params_json));
+    cJSON *root = cJSON_ParseWithOpts(params_json, NULL, true);
     bool ok = cJSON_IsObject(root);
     const cJSON *group;
     if (ok) {
@@ -123,6 +125,7 @@ static bool valid_command(const noise_ctrl_command_def_t *defs, size_t index) {
 }
 
 bool noise_ctrl_add_commands(const noise_ctrl_command_def_t *defs, size_t count) {
+    if (count == 0) return true;  // a conditionally built, empty batch
     if (!defs || count > NOISE_CTRL_MAX_COMMANDS - s_count) {
         ESP_LOGE("link.commands", "command table full");
         return false;
@@ -145,7 +148,11 @@ void command_registry_append(cJSON *commands) {
         cJSON *command = def->params_json
             ? cJSON_ParseWithLength(def->params_json, strlen(def->params_json))
             : cJSON_CreateObject();
-        if (!command) continue;
+        if (!command) {
+            // Out of memory. The command stays invocable but is not advertised.
+            ESP_LOGE("link.commands", "command %s not advertised", def->name);
+            continue;
+        }
         if (!cJSON_GetObjectItem(command, "required")) {
             cJSON_AddItemToObject(command, "required", cJSON_CreateObject());
         }

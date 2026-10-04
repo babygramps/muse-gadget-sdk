@@ -55,6 +55,7 @@ int main(void) {
     assert(command_registry_find("smoker.set_target")->timeout_ms == 15000);
     assert(command_registry_find("smoker.nope") == NULL);
     assert(noise_ctrl_add_commands(first, 0));
+    assert(noise_ctrl_add_commands(NULL, 0));
 
     // Each rejected batch adds nothing, not even its valid entries.
     const noise_ctrl_command_def_t sdk_name[] = {DEF("smoker.a", NULL, 0), DEF("device.health", NULL, 0)};
@@ -62,16 +63,17 @@ int main(void) {
     const noise_ctrl_command_def_t again[] = {DEF("smoker.status", NULL, 0)};
     const noise_ctrl_command_def_t bad_json[] = {DEF("smoker.c", "{\"required\":", 0)};
     const noise_ctrl_command_def_t bad_type[] = {DEF("smoker.c", "{\"required\":{\"x\":{\"type\":\"float\"}}}", 0)};
+    const noise_ctrl_command_def_t trailing[] = {DEF("smoker.c", "{} garbage", 0)};
     const noise_ctrl_command_def_t bad_group[] = {DEF("smoker.c", "{\"extra\":{}}", 0)};
     const noise_ctrl_command_def_t bad_shape[] = {DEF("smoker.c", "{\"required\":[]}", 0)};
     const noise_ctrl_command_def_t bad_name[] = {DEF("smoker status", NULL, 0)};
     const noise_ctrl_command_def_t no_handler[] = {{"smoker.c", "Test", NULL, 0, NULL}};
     const noise_ctrl_command_def_t no_description[] = {{"smoker.c", "", NULL, 0, handler}};
     const noise_ctrl_command_def_t *rejected[] = {
-        sdk_name, twice, again, bad_json, bad_type, bad_group, bad_shape, bad_name,
+        sdk_name, twice, again, bad_json, trailing, bad_type, bad_group, bad_shape, bad_name,
         no_handler, no_description,
     };
-    const size_t sizes[] = {2, 2, 1, 1, 1, 1, 1, 1, 1, 1};
+    const size_t sizes[] = {2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1};
     for (size_t i = 0; i < sizeof(sizes) / sizeof(sizes[0]); i++) {
         assert(!noise_ctrl_add_commands(rejected[i], sizes[i]));
     }
