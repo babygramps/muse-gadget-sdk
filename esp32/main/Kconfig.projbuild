@@ -418,4 +418,13 @@ menu "ESP32 Device SDK"
             enclosing project keeps working without the gadget; on a
             standalone gadget the abort (and reboot) stays the better choice.
 
+    config HOMEHUB_BLE_STOP_FAIL_NO_REBOOT
+        bool "Log a failed BLE stop after pairing instead of rebooting"
+        default n
+        help
+            After pairing, the SDK stops NimBLE to free its memory and reboots
+            if the stop keeps failing. With this on it logs the failure
+            instead: BLE stays stopped, without its memory released, until
+            the next reboot, which the enclosing project chooses.
+
 endmenu

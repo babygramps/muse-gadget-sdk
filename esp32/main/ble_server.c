@@ -786,9 +786,17 @@ void ble_server_full_shutdown(void) {
         vTaskDelay(pdMS_TO_TICKS(200));
     }
     if (rc != 0) {
+#if CONFIG_HOMEHUB_BLE_STOP_FAIL_NO_REBOOT
+        // The enclosing project decides when to reboot. BLE stays stopped:
+        // advertising is off and s_shutting_down keeps it from restarting;
+        // only its memory is not released.
+        ESP_LOGE(TAG, "nimble_port_stop failed after retries; BLE stays stopped");
+        return;
+#else
         ESP_LOGE(TAG, "nimble_port_stop failed after retries — rebooting");
         stack_monitor_record(NULL);
         esp_restart();
+#endif
     }
     esp_err_t err = nimble_port_deinit();
     if (err != ESP_OK) {
