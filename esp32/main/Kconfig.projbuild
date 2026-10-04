@@ -322,4 +322,14 @@ menu "ESP32 Device SDK"
             Manufacturing provisions the pairing key in KEY2 before Secure Boot
             locks read protection. No shared software attestation key is used.
 
+    config GADGET_PRE_APP_HOOK
+        bool "Call the enclosing project's gadget_pre_app_hook() first"
+        default n
+        help
+            For a project that builds this SDK into its own firmware.
+            app_main() calls gadget_pre_app_hook() (gadget_hooks.h), which the
+            project defines, just before app_run(). The project starts its own
+            drivers, storage and Wi-Fi there and registers its hooks with the
+            SDK (Wi-Fi provider, idle check, commands).
+
 endmenu

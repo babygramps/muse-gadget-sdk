@@ -17,6 +17,7 @@
 #include "app.h"
 #include "esp_log.h"
 #include "diagnostic_log.h"
+#include "gadget_hooks.h"
 #if CONFIG_MUSE_ENABLED
 #include "muse_glue.h"
 #endif
@@ -31,6 +32,9 @@ void app_main(void) {
     ESP_LOGI("link.main", CONFIG_GADGET_PRODUCT_NAME " starting");
 #if CONFIG_MUSE_ENABLED
     muse_glue_start();
+#endif
+#if CONFIG_GADGET_PRE_APP_HOOK
+    gadget_pre_app_hook();
 #endif
     app_run();
 }
