@@ -76,6 +76,7 @@ class LinkEndpointLifecycleTest(unittest.TestCase):
 #define esp_ota_get_running_partition() NULL
 #define esp_ota_get_state_partition(p, s) ((void)(p), (void)(s), -1)
 #define xTaskCreate(...) ((void)0)
+#define ota_is_enabled() true
 typedef int esp_partition_t;
 typedef int esp_ota_img_states_t;
 static bool s_ota_pending_verify;

@@ -2571,12 +2571,21 @@ static void ota_verify_task(void *arg) {
         }
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
-    if (s_ota_pending_verify) {
+    // Something else may have validated the image meanwhile (an enclosing
+    // project's own update path); only an image still pending is rolled back.
+    const esp_partition_t *running = esp_ota_get_running_partition();
+    esp_ota_img_states_t state;
+    bool still_pending = running
+        && esp_ota_get_state_partition(running, &state) == ESP_OK
+        && state == ESP_OTA_IMG_PENDING_VERIFY;
+    if (s_ota_pending_verify && still_pending) {
         ESP_LOGE(TAG, "OTA verify timed out; rolling back to previous firmware");
         stack_monitor_record(NULL);
         esp_ota_mark_app_invalid_rollback_and_reboot();
         // Only returns when there is no valid partition to revert to.
         ESP_LOGE(TAG, "rollback failed: no valid partition to revert to");
+    } else if (s_ota_pending_verify) {
+        ESP_LOGI(TAG, "OTA image was validated elsewhere; keeping it");
     } else {
         ESP_LOGW(TAG, "running image not validated (control WS never came up)");
     }
@@ -2714,14 +2723,18 @@ void app_run(void) {
     // Arm OTA rollback verification. If the running image was just installed
     // by device.ota it boots as PENDING_VERIFY and must reach the control WS
     // within OTA_VERIFY_TIMEOUT_US, else the bootloader reverts it on reboot.
-    const esp_partition_t *running = esp_ota_get_running_partition();
-    esp_ota_img_states_t ota_state;
-    if (running && esp_ota_get_state_partition(running, &ota_state) == ESP_OK
-        && ota_state == ESP_OTA_IMG_PENDING_VERIFY) {
-        s_ota_pending_verify = true;
-        ESP_LOGW(TAG, "running a PENDING_VERIFY OTA image; awaiting health check");
+    // Builds without OTA install nothing, so whatever installed the running
+    // image (an enclosing project's own update path) validates it.
+    if (ota_is_enabled()) {
+        const esp_partition_t *running = esp_ota_get_running_partition();
+        esp_ota_img_states_t ota_state;
+        if (running && esp_ota_get_state_partition(running, &ota_state) == ESP_OK
+            && ota_state == ESP_OTA_IMG_PENDING_VERIFY) {
+            s_ota_pending_verify = true;
+            ESP_LOGW(TAG, "running a PENDING_VERIFY OTA image; awaiting health check");
+        }
+        xTaskCreate(ota_verify_task, "ota_verify", 4096, NULL, 4, NULL);
     }
-    xTaskCreate(ota_verify_task, "ota_verify", 4096, NULL, 4, NULL);
 
     bool setup_complete = config_setup_complete();
     bool provisioned = config_is_provisioned();
