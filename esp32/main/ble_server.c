@@ -109,6 +109,14 @@ static void start_advertising(void);
 #define PROVISION_ALLOWS_EMPTY_PASSWORD 0
 #endif
 
+// CONFIG_HOMEHUB_OTA_COMPILE_OUT drops the BLE device.ota action (it answers
+// error_unknown_action) and the ota_url in provisioning.
+#if CONFIG_HOMEHUB_OTA_COMPILE_OUT
+#define BLE_OTA_ACTIONS 0
+#else
+#define BLE_OTA_ACTIONS 1
+#endif
+
 // ---- Worker tasks for command dispatch -------------------------------------
 
 static atomic_bool s_device_info_pending = ATOMIC_VAR_INIT(false);
@@ -373,7 +381,7 @@ static void dispatch_command_ex(const uint8_t *data, size_t len, bool decrypted)
         ble_server_send_status("error_pairing_confirm_required");
     } else if (decrypted && strcmp(act, "wifi_scan") == 0) {
         xTaskCreate(scan_task, "scan", 4096, NULL, 5, NULL);
-    } else if (decrypted && strcmp(act, "device.ota") == 0) {
+    } else if (decrypted && strcmp(act, "device.ota") == 0 && BLE_OTA_ACTIONS) {
         {
             cJSON *u = cJSON_GetObjectItem(root, "url");
             cJSON *f = cJSON_GetObjectItem(root, "force");
@@ -434,7 +442,7 @@ static void dispatch_command_ex(const uint8_t *data, size_t len, bool decrypted)
             if (cJSON_IsString(u) && u->valuestring) {
                 a->username = dup_str(u->valuestring);
             }
-            if (*ota_url) {
+            if (BLE_OTA_ACTIONS && *ota_url) {
                 a->ota_url = dup_str(ota_url);
                 a->ota_force = optional_ota_force(root);
                 if (!a->ota_url) {

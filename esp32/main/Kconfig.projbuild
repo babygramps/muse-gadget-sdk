@@ -368,4 +368,16 @@ menu "ESP32 Device SDK"
             /chat/stream on their own streams of the control session. Muse
             builds always have them.
 
+    config HOMEHUB_OTA_COMPILE_OUT
+        bool "Remove the OTA entry points"
+        depends on !HOMEHUB_OTA_ENABLED
+        default n
+        help
+            Without OTA, updates are already refused without downloading.
+            This also removes the entry points: the device.ota invoke answers
+            "unsupported" like any command the build does not have, the BLE
+            device.ota action answers error_unknown_action, and provisioning
+            ignores ota_url. For firmware that changes only through its
+            enclosing project's own update path.
+
 endmenu

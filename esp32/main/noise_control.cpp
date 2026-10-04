@@ -1489,6 +1489,14 @@ static void noise_ota_status(const ota_event_t *ev, void *user) {
 
 // ---- Inbound message dispatch -----------------------------------------------
 
+// CONFIG_HOMEHUB_OTA_COMPILE_OUT drops the device.ota invoke: it answers
+// "unsupported" like any other command the build does not have.
+#if CONFIG_HOMEHUB_OTA_COMPILE_OUT
+#define OTA_INVOKE 0
+#else
+#define OTA_INVOKE 1
+#endif
+
 static void send_device_health(
     noise_ctrl_session_generation_t session_generation,
     const char *request_id) {
@@ -1613,7 +1621,7 @@ static void handle_invoke_request(
 
     ESP_LOGI(TAG, "invoke request: command=%s", command);
 
-    if (strcmp(command, "device.ota") == 0) {
+    if (OTA_INVOKE && strcmp(command, "device.ota") == 0) {
         cJSON *url = cmd_params ? cJSON_GetObjectItem(cmd_params, "url") : nullptr;
         cJSON *force = cmd_params ? cJSON_GetObjectItem(cmd_params, "force") : nullptr;
         if (cJSON_IsString(url) && url->valuestring && url->valuestring[0]) {
