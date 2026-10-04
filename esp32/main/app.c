@@ -544,9 +544,15 @@ done:
 // alongside the others rather than in place of them. One the phone's scan
 // didn't show must hide its name.
 static void remember_joined_wifi(const char *ssid, const char *password) {
+#if CONFIG_HOMEHUB_WIFI_EXTERNAL
+    // The enclosing project owns Wi-Fi and keeps its own credentials.
+    (void)ssid;
+    (void)password;
+#else
     if (!wifi_known_remember(ssid, password, !wifi_mgr_cached_scan_has(ssid))) {
         ESP_LOGW(TAG, "failed to save wifi network");
     }
+#endif
 }
 
 static void disconnect_vm_transports(void) {
@@ -1168,7 +1174,14 @@ static void on_provision(const char *ssid, const char *password,
 
     ble_server_send_pairing_status("wifi_connected", session_generation);
     if (!require_provisioning_pairing_session(session_generation)) goto done;
+#if CONFIG_HOMEHUB_WIFI_EXTERNAL
+    // The session reports the network the enclosing project is on.
+    char current_ssid[33];
+    ui_set_wifi(wifi_mgr_current_ssid(current_ssid, sizeof(current_ssid))
+                ? current_ssid : ssid);
+#else
     ui_set_wifi(ssid);
+#endif
     ui_set_status("wifi_connected");
     led_status_set_state(LED_STATE_WIFI_CONNECTED);
     remember_joined_wifi(ssid, password);
@@ -2231,6 +2244,40 @@ bool app_wifi_nap(void) {
 }
 #endif  // CONFIG_MUSE_ENABLED
 
+#if CONFIG_HOMEHUB_WIFI_EXTERNAL
+#define EXTERNAL_VM_RETRY_MIN_US (5LL * 1000 * 1000)
+#define EXTERNAL_VM_RETRY_MAX_US (60LL * 1000 * 1000)
+
+// The enclosing project joins Wi-Fi when it likes, maybe long after boot, and
+// rejoins after drops. Once it reports a connection and setup is complete, the
+// heartbeat reaches the VM, retrying with backoff until the session runs; from
+// then on the session reconnects by itself.
+static void keep_vm_session_external(void) {
+    static int64_t next_try;
+    static int64_t backoff = EXTERNAL_VM_RETRY_MIN_US;
+    if (!wifi_mgr_is_connected() || !config_setup_complete()
+        || !config_is_provisioned() || noise_ctrl_is_running()) {
+        next_try = 0;
+        backoff = EXTERNAL_VM_RETRY_MIN_US;
+        return;
+    }
+    int64_t now = esp_timer_get_time();
+    if (now < next_try || !operation_gate_take(0, "external Wi-Fi VM connect")) return;
+    char ssid[33];
+    ui_set_wifi(wifi_mgr_current_ssid(ssid, sizeof(ssid)) ? ssid : NULL);
+    bool connected = ensure_access_token_ready_with_gate_held(false, true)
+                     && connect_preferred_vm_with_gate_held(0);
+    ui_set_status(connected ? "auth_ok" : "auth_failed");
+    led_status_set_state(connected ? LED_STATE_AUTH_OK : LED_STATE_ERROR);
+    operation_gate_give();
+    if (!connected) {
+        ESP_LOGW(TAG, "no VM session; retrying in %llds", (long long)(backoff / 1000000));
+        next_try = now + backoff;
+        backoff = backoff * 2 > EXTERNAL_VM_RETRY_MAX_US ? EXTERNAL_VM_RETRY_MAX_US : backoff * 2;
+    }
+}
+#endif
+
 #if CONFIG_MUSE_ENABLED || CONFIG_HOMEHUB_VOICE
 // Muse's and the voice board's own Hatch session reach the VM with these.
 typedef struct {
@@ -2742,6 +2789,9 @@ void app_run(void) {
 
 #if CONFIG_MUSE_ENABLED
         muse_keep_vm_session();
+#endif
+#if CONFIG_HOMEHUB_WIFI_EXTERNAL
+        keep_vm_session_external();
 #endif
 
         // Runs on every heartbeat tick, and does two things.

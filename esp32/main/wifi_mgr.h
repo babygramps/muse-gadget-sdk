@@ -77,3 +77,21 @@ int wifi_mgr_get_cached_scan(wifi_scan_entry_t *out, int max_entries);
 
 // Whether the cached scan has this network, broadcasting its name.
 bool wifi_mgr_cached_scan_has(const char *ssid);
+
+// ---- Wi-Fi owned by the enclosing project (CONFIG_HOMEHUB_WIFI_EXTERNAL) ----
+//
+// wifi_mgr_external.c implements the functions above over this provider and
+// never touches the radio itself.
+typedef struct {
+    bool (*is_connected)(void);            // station has an IP address
+    bool (*get_ssid)(char *out, size_t len);
+    int  (*get_rssi)(void);
+    bool (*ap_active)(void);               // the enclosing project's SoftAP is up
+    esp_netif_t *(*get_netif)(void);       // station netif
+} wifi_provider_t;
+// Call before app_run(). The struct must stay valid for the program's life.
+void wifi_mgr_set_provider(const wifi_provider_t *provider);
+// Whether the enclosing project's SoftAP is up; false without a provider.
+bool wifi_mgr_ap_active(void);
+// Copies the current network's name out while connected; false and "" if not.
+bool wifi_mgr_current_ssid(char *out, size_t len);

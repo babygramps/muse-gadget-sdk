@@ -332,4 +332,18 @@ menu "ESP32 Device SDK"
             drivers, storage and Wi-Fi there and registers its hooks with the
             SDK (Wi-Fi provider, idle check, commands).
 
+    config HOMEHUB_WIFI_EXTERNAL
+        bool "Wi-Fi belongs to the enclosing project"
+        depends on !MUSE_ENABLED
+        default n
+        help
+            For a project that builds this SDK into firmware that already runs
+            Wi-Fi. wifi_mgr_external.c replaces wifi_mgr.c: the SDK never
+            starts, joins, scans or leaves a network, and reads the connection
+            through the provider the project registers with
+            wifi_mgr_set_provider() before app_run(). Pairing offers the
+            current connection as the only network, accepts an empty password
+            for it and saves none of the SDK's own Wi-Fi settings. Once paired,
+            the SDK reaches the VM whenever the project reports a connection.
+
 endmenu

@@ -101,6 +101,14 @@ static uint8_t s_rx_next_idx = 0;
 
 static void start_advertising(void);
 
+// With Wi-Fi owned by the enclosing project, setup offers the current
+// connection as an open network and the app sends an empty password for it.
+#if CONFIG_HOMEHUB_WIFI_EXTERNAL
+#define PROVISION_ALLOWS_EMPTY_PASSWORD 1
+#else
+#define PROVISION_ALLOWS_EMPTY_PASSWORD 0
+#endif
+
 // ---- Worker tasks for command dispatch -------------------------------------
 
 static atomic_bool s_device_info_pending = ATOMIC_VAR_INIT(false);
@@ -404,7 +412,8 @@ static void dispatch_command_ex(const uint8_t *data, size_t len, bool decrypted)
         const char *ota_url = optional_ota_url(root);
         if (!cJSON_IsString(s) || !cJSON_IsString(p) || !cJSON_IsString(at)
             || !s->valuestring || !p->valuestring || !at->valuestring
-            || !*s->valuestring || !*p->valuestring || !*at->valuestring
+            || !*s->valuestring || !*at->valuestring
+            || (!*p->valuestring && !PROVISION_ALLOWS_EMPTY_PASSWORD)
             || !cJSON_IsString(rt) || !rt->valuestring || !*rt->valuestring
             || !cJSON_IsString(tt) || !tt->valuestring
             || strcmp(tt->valuestring, "device") != 0) {

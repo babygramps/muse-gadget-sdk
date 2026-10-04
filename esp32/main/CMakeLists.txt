@@ -16,7 +16,6 @@ set(GADGET_SRCS
     "main.c"
     "app.c"
     "ble_server.c"
-    "wifi_mgr.c"
     "wifi_known.c"
     "identity.c"
     "config_store.c"
@@ -79,6 +78,13 @@ endif()
 
 if(CONFIG_MUSE_ENABLED)
     list(APPEND GADGET_SRCS "muse_glue.c")
+endif()
+
+# Wi-Fi owned by the enclosing project: the SDK only reads its connection.
+if(CONFIG_HOMEHUB_WIFI_EXTERNAL)
+    list(APPEND GADGET_SRCS "wifi_mgr_external.c")
+else()
+    list(APPEND GADGET_SRCS "wifi_mgr.c")
 endif()
 
 if(CONFIG_HOMEHUB_LED_BACKEND_DEVKIT_GPIO27 OR CONFIG_HOMEHUB_LED_BACKEND_VOICE_RING)
