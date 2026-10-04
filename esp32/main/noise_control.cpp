@@ -160,6 +160,13 @@ static bool s_heartbeat_registered = false;
 static TaskHandle_t s_task = nullptr;
 
 #define NOISE_CTRL_STACK 12288
+// CONFIG_HOMEHUB_NOISE_CTRL_CORE pins the session task on dual-core targets,
+// away from an enclosing project's time-critical task; -1 leaves it unpinned.
+#if CONFIG_HOMEHUB_NOISE_CTRL_CORE >= 0 && !CONFIG_FREERTOS_UNICORE
+#define NOISE_CTRL_CORE CONFIG_HOMEHUB_NOISE_CTRL_CORE
+#else
+#define NOISE_CTRL_CORE tskNO_AFFINITY
+#endif
 #if CONFIG_MUSE_ENABLED && CONFIG_SPIRAM
 // Muse's display and audio leave internal RAM fragmented by the time a session
 // starts, often without a 12 KB block for this stack. Hold one from boot and
@@ -2360,7 +2367,8 @@ extern "C" bool noise_ctrl_connect(const char *vm_id, const char *auth_token,
 
     s_running = true;
     release_stack();
-    if (xTaskCreate(noise_ctrl_task, "noise_ctrl", NOISE_CTRL_STACK, nullptr, 5, &s_task) != pdPASS) {
+    if (xTaskCreatePinnedToCore(noise_ctrl_task, "noise_ctrl", NOISE_CTRL_STACK, nullptr, 5,
+                                &s_task, NOISE_CTRL_CORE) != pdPASS) {
         s_running = false;
         s_task = nullptr;
         reserve_stack();

@@ -395,4 +395,14 @@ menu "ESP32 Device SDK"
             The model the server sees in link.register; see
             HOMEHUB_DEVICE_FAMILY.
 
+    config HOMEHUB_NOISE_CTRL_CORE
+        int "Core for the control session task (-1: either)"
+        range -1 1
+        default -1
+        help
+            Pins the noise_ctrl task to this core on dual-core targets, so an
+            enclosing project can keep the other core for its own
+            time-critical task. -1 leaves it unpinned. Single-core targets
+            ignore it.
+
 endmenu
