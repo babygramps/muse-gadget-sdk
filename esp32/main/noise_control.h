@@ -123,7 +123,8 @@ void noise_ctrl_send_command_result(
     noise_ctrl_session_generation_t session_generation,
     const char *request_id, cJSON *result);
 
-// ---- Extra daemon requests on this session (Muse builds only) ----
+// ---- Extra daemon requests on this session ----
+// (Muse builds, and builds with CONFIG_HOMEHUB_DEVICE_REQUESTS)
 //
 // Any task can open an HTTP request to the VM daemon on its own stream of this
 // session. A refused or reset request never affects the control session.

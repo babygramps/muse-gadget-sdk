@@ -899,8 +899,11 @@ static bool tunnel_send_body(void *vctx, const uint8_t *data, size_t len) {
 
 // ---- Extra daemon requests (noise_ctrl_req_*) --------------------------------
 
-// Only Muse opens these; Link-only gateways get the empty stubs below.
-#if CONFIG_MUSE_ENABLED
+// Muse opens these, and so can an enclosing project that asks for them
+// (CONFIG_HOMEHUB_DEVICE_REQUESTS); other Link gateways get the empty stubs
+// below.
+#define NOISE_CTRL_DEVICE_REQUESTS (CONFIG_MUSE_ENABLED || CONFIG_HOMEHUB_DEVICE_REQUESTS)
+#if NOISE_CTRL_DEVICE_REQUESTS
 
 // Stream ids from here up belong to these requests; lower ids are Link's own.
 #define REQ_STREAM_BASE 16
@@ -1099,7 +1102,7 @@ static void req_init(void) {
 static void req_init(void) {}
 static void req_end_all(void) {}
 static bool req_on_frame(const DecodedServiceFrame &) { return false; }
-#endif  // CONFIG_MUSE_ENABLED
+#endif  // NOISE_CTRL_DEVICE_REQUESTS
 
 // ---- Agent identity ----------------------------------------------------------
 
@@ -2169,7 +2172,7 @@ static session_result_t run_session(stack_monitor_t *stack) {
             }
         }
 
-#if CONFIG_MUSE_ENABLED
+#if NOISE_CTRL_DEVICE_REQUESTS
         {
             bool sent = false;
             if (!req_pump_tx(tls, session, svc_scratch, env_scratch, ws_buf, &sent)) {
@@ -2414,7 +2417,7 @@ extern "C" void noise_ctrl_send_command_result(
     queue_result(session_generation, request_id, result);
 }
 
-#if CONFIG_MUSE_ENABLED
+#if NOISE_CTRL_DEVICE_REQUESTS
 extern "C" int64_t noise_ctrl_req_open(const char *verb, const char *path,
                                        const char *const *headers, bool end_body,
                                        noise_ctrl_req_cb cb, void *ctx) {
@@ -2477,4 +2480,4 @@ extern "C" void noise_ctrl_req_cancel(int64_t id) {
     req_op op = {req_op_kind::Cancel, false, id, nullptr, 0, nullptr, nullptr};
     req_put(op, pdMS_TO_TICKS(100));
 }
-#endif  // CONFIG_MUSE_ENABLED
+#endif  // NOISE_CTRL_DEVICE_REQUESTS

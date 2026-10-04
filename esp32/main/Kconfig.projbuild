@@ -358,4 +358,14 @@ menu "ESP32 Device SDK"
             With HOMEHUB_WIFI_EXTERNAL, nothing advertises while the enclosing
             project reports its SoftAP up, whatever this value.
 
+    config HOMEHUB_DEVICE_REQUESTS
+        bool "Daemon requests on the control session without Muse"
+        default n
+        help
+            Builds noise_ctrl_req_open(), noise_ctrl_req_send() and
+            noise_ctrl_req_cancel() (noise_control.h) into builds without
+            Muse, so the enclosing project can call VM daemon endpoints such as
+            /chat/stream on their own streams of the control session. Muse
+            builds always have them.
+
 endmenu
