@@ -39,6 +39,7 @@
 
 extern "C" {
 #include "cJSON.h"
+#include "command_registry.h"
 #include "led_status.h"
 #include "ota.h"
 #if CONFIG_MUSE_ENABLED
@@ -1392,15 +1393,18 @@ static char *build_register_json(void) {
                     ota_required, ota_optional);
     }
 
+    command_registry_append(commands);
+
     cJSON_AddItemToObject(params, "commands_v2", commands);
     cJSON_AddItemToObject(root, "params", params);
 
     // cJSON_PrintUnformatted grows its buffer by doubling, holding the old
     // one each time, so ~2 KB of JSON briefly needs ~6 KB of byte-addressable
     // heap. Right after the handshake there is often not that much, so print
-    // into one buffer sized to fit instead.
+    // into one buffer sized to fit instead. Commands added by the enclosing
+    // project (noise_ctrl_add_commands) can take it well past 8 KB.
     char *json = nullptr;
-    for (int size = 2048; size <= 8192 && !json; size += 512) {
+    for (int size = 2048; size <= 16384 && !json; size += 512) {
         json = (char *)malloc(size);
         if (!json) break;
         if (!cJSON_PrintPreallocated(root, json, size, false)) {
@@ -1541,6 +1545,29 @@ static void send_device_health(
     queue_result(session_generation, request_id, result);
 }
 
+// Queues what a command handler returned: nothing yet for {"_async":true}
+// (the handler answers later), handler_failed for NULL.
+static void queue_handler_result(noise_ctrl_session_generation_t session_generation,
+                                 const char *request_id, cJSON *result) {
+    if (result) {
+        cJSON *async = cJSON_GetObjectItem(result, "_async");
+        if (cJSON_IsTrue(async)) {
+            cJSON_Delete(result);
+        } else {
+            queue_result(session_generation, request_id, result);
+        }
+    } else {
+        cJSON *err_result = cJSON_CreateObject();
+        cJSON_AddBoolToObject(err_result, "ok", false);
+        cJSON *error = cJSON_CreateObject();
+        cJSON_AddStringToObject(error, "code", "handler_failed");
+        cJSON_AddStringToObject(error, "message",
+                                "command handler did not return a result");
+        cJSON_AddItemToObject(err_result, "error", error);
+        queue_result(session_generation, request_id, err_result);
+    }
+}
+
 static void handle_invoke_request(
     const char *data, size_t len,
     noise_ctrl_session_generation_t session_generation) {
@@ -1616,26 +1643,14 @@ static void handle_invoke_request(
         }
     } else if (strcmp(command, "device.health") == 0) {
         send_device_health(session_generation, request_id);
+    } else if (const noise_ctrl_command_def_t *def = command_registry_find(command)) {
+        queue_handler_result(session_generation, request_id,
+                             def->handler(command, cmd_params, request_id,
+                                          session_generation));
     } else if (s_command_cb) {
-        cJSON *result = s_command_cb(command, cmd_params, request_id,
-                                     session_generation);
-        if (result) {
-            cJSON *async = cJSON_GetObjectItem(result, "_async");
-            if (cJSON_IsTrue(async)) {
-                cJSON_Delete(result);
-            } else {
-                queue_result(session_generation, request_id, result);
-            }
-        } else {
-            cJSON *err_result = cJSON_CreateObject();
-            cJSON_AddBoolToObject(err_result, "ok", false);
-            cJSON *error = cJSON_CreateObject();
-            cJSON_AddStringToObject(error, "code", "handler_failed");
-            cJSON_AddStringToObject(error, "message",
-                                    "command handler did not return a result");
-            cJSON_AddItemToObject(err_result, "error", error);
-            queue_result(session_generation, request_id, err_result);
-        }
+        queue_handler_result(session_generation, request_id,
+                             s_command_cb(command, cmd_params, request_id,
+                                          session_generation));
     } else {
         char msg[128];
         snprintf(msg, sizeof(msg), "unsupported command: %s", command);

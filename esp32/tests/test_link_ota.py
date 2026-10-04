@@ -160,6 +160,7 @@ int main(void) {
 #include <stdlib.h>
 #include <string.h>
 #include "cJSON.h"
+#include "command_registry.h"
 #include "esp_app_desc.h"
 #define nullptr NULL
 #define CONFIG_HOMEHUB_TUNNEL 1
@@ -183,7 +184,9 @@ int main(void) {
     return 0;
 }
 ''')
-            output = self.compile_and_run([source, ROOT / "tests/link_fakes/cJSON.c"], tmp)
+            output = self.compile_and_run(
+                [source, ROOT / "main/command_registry.c", ROOT / "tests/link_fakes/cJSON.c"], tmp,
+            )
             registrations = [json.loads(line)["params"] for line in output.splitlines()]
             self.assertEqual(len(registrations), 2)
             for enabled, params in zip((False, True), registrations):

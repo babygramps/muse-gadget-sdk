@@ -31,6 +31,7 @@ set(GADGET_SRCS
     "tunnel_netif.c"
     "net_discovery.c"
     "noise_control.cpp"
+    "command_registry.c"
     "noise_tunnel.cpp"
     "link_pairing.c"
     "pairing_signer_policy.c"

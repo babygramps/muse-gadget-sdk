@@ -61,6 +61,33 @@ void noise_ctrl_init(const char *node_id, const char *display_name,
 
 void noise_ctrl_set_command_cb(noise_ctrl_command_cb cb);
 
+// ---- Commands added by the enclosing project ----
+//
+// Registered commands are advertised in link.register (commands_v2) after the
+// SDK's own, and an invoke of one reaches its handler before the SDK's
+// fallback (noise_ctrl_set_command_cb). Handlers run one at a time on the
+// noise_ctrl task and must return quickly. They return the result as the SDK's
+// handlers do: {"ok":true,"payload_json":"..."} or {"ok":false,"error":{...}};
+// {"_async":true} to answer later with noise_ctrl_send_command_result(); NULL
+// answers handler_failed.
+#define NOISE_CTRL_MAX_COMMANDS 24
+#define NOISE_CTRL_COMMAND_NAME_MAX 63
+
+typedef struct {
+    const char *name;
+    const char *description;
+    const char *params_json;   // {"required":{...},"optional":{...}}, or NULL for no parameters
+    uint32_t timeout_ms;       // 0 = SDK default
+    noise_ctrl_command_cb handler;
+} noise_ctrl_command_def_t;
+
+// Static storage, at most NOISE_CTRL_MAX_COMMANDS commands in total; the
+// strings must stay valid for the program's life. Call before app_run().
+// Returns false (and adds nothing) on a name that collides with an SDK command
+// or another registered one, malformed params_json, or a full table. Each
+// parameter is {"type":"string"|"integer"|"number"|"boolean","description":...}.
+bool noise_ctrl_add_commands(const noise_ctrl_command_def_t *defs, size_t count);
+
 // Called from the session task with the agent's name (GET /identity) once per
 // Noise session, shortly after the device registers.
 typedef void (*noise_ctrl_agent_name_cb)(const char *name);
