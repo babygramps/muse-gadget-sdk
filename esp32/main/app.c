@@ -2675,7 +2675,13 @@ void app_run(void) {
         abort();
     }
 
-    config_store_init();
+    if (!config_store_init()) {
+        // CONFIG_HOMEHUB_NVS_FAIL_DISABLES_LINK: without storage there is no
+        // identity or pairing, so the device runs on without the gadget
+        // runtime instead of aborting into a boot loop.
+        ESP_LOGE(TAG, "storage unavailable; gadget runtime off until the next boot");
+        return;
+    }
     wifi_known_init();
 
     identity_init();

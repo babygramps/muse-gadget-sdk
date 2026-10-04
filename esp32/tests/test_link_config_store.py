@@ -34,47 +34,55 @@ class LinkConfigStoreHarnessTest(unittest.TestCase):
         if not cc or shutil.which(cc[0]) is None:
             raise unittest.SkipTest("C compiler not available")
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            binary = Path(tmpdir) / "link_config_store_harness"
-            compile_proc = subprocess.run(
-                [
-                    *cc,
-                    "-std=c11",
-                    "-Wall",
-                    "-Wextra",
-                    "-I",
-                    str(ROOT / "tests" / "link_fakes"),
-                    "-I",
-                    str(ROOT / "main"),
-                    str(ROOT / "tests" / "link_config_store_harness.c"),
-                    str(ROOT / "main" / "config_store.c"),
-                    "-o",
-                    str(binary),
-                ],
-                cwd=ROOT,
-                text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-            self.assertEqual(
-                compile_proc.returncode,
-                0,
-                msg=compile_proc.stdout + compile_proc.stderr,
-            )
+        for flags in ([], ["-DCONFIG_HOMEHUB_NVS_FAIL_DISABLES_LINK=1"]):
+            with self.subTest(flags=flags), tempfile.TemporaryDirectory() as tmpdir:
+                binary = Path(tmpdir) / "link_config_store_harness"
+                compile_proc = subprocess.run(
+                    [
+                        *cc,
+                        "-std=c11",
+                        "-Wall",
+                        "-Wextra",
+                        *flags,
+                        "-I",
+                        str(ROOT / "tests" / "link_fakes"),
+                        "-I",
+                        str(ROOT / "main"),
+                        str(ROOT / "tests" / "link_config_store_harness.c"),
+                        str(ROOT / "main" / "config_store.c"),
+                        "-o",
+                        str(binary),
+                    ],
+                    cwd=ROOT,
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+                self.assertEqual(
+                    compile_proc.returncode,
+                    0,
+                    msg=compile_proc.stdout + compile_proc.stderr,
+                )
 
-            run_proc = subprocess.run(
-                [str(binary)],
-                cwd=ROOT,
-                text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-            self.assertEqual(
-                run_proc.returncode,
-                0,
-                msg=run_proc.stdout + run_proc.stderr,
-            )
+                run_proc = subprocess.run(
+                    [str(binary)],
+                    cwd=ROOT,
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+                self.assertEqual(
+                    run_proc.returncode,
+                    0,
+                    msg=run_proc.stdout + run_proc.stderr,
+                )
 
+    def test_app_run_returns_when_storage_is_unavailable(self) -> None:
+        app = (ROOT / "main" / "app.c").read_text()
+        body = app[app.index("void app_run(void) {"):]
+        guard = body.index("if (!config_store_init()) {")
+        self.assertLess(guard, body.index("wifi_known_init();"))
+        self.assertIn("return;", body[guard:body.index("wifi_known_init();")])
 
 if __name__ == "__main__":
     unittest.main()

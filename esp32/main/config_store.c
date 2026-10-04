@@ -50,7 +50,7 @@ static bool nvs_encryption_possible(void) {
 #endif
 }
 
-void config_store_init(void) {
+bool config_store_init(void) {
     bool encrypted = nvs_encryption_possible();
     ESP_LOGI(TAG, "NVS mode: %s", encrypted ? "encrypted" : "plaintext");
     esp_err_t err = encrypted
@@ -61,7 +61,15 @@ void config_store_init(void) {
         ESP_LOGE(TAG, "NVS requires explicit recovery; refusing identity erase: %s",
                  esp_err_to_name(err));
     }
+#if CONFIG_HOMEHUB_NVS_FAIL_DISABLES_LINK
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "NVS init failed: %s", esp_err_to_name(err));
+        return false;
+    }
+#else
     ESP_ERROR_CHECK(err);
+#endif
+    return true;
 }
 
 bool config_get_str(const char *key, char *out, size_t buf_size) {

@@ -405,4 +405,13 @@ menu "ESP32 Device SDK"
             time-critical task. -1 leaves it unpinned. Single-core targets
             ignore it.
 
+    config HOMEHUB_NVS_FAIL_DISABLES_LINK
+        bool "Run without the gadget runtime when NVS fails"
+        default n
+        help
+            When the default NVS partition cannot be initialized, app_run()
+            logs it and returns instead of aborting. For firmware whose
+            enclosing project keeps working without the gadget; on a
+            standalone gadget the abort (and reboot) stays the better choice.
+
 endmenu

@@ -55,6 +55,7 @@ static esp_err_t s_open_error;
 static const char *s_get_error_key;
 static const char *s_commit_error_key;
 static bool s_require_endpoints_erased_first;
+static esp_err_t s_init_error;
 
 static fake_entry_t *find_entry(const char *key) {
     for (size_t i = 0; i < MAX_ENTRIES; i++) {
@@ -90,6 +91,7 @@ static void fake_reset(void) {
     s_get_error_key = NULL;
     s_commit_error_key = NULL;
     s_require_endpoints_erased_first = false;
+    s_init_error = ESP_OK;
 }
 
 esp_err_t nvs_flash_init(void) {
@@ -98,7 +100,7 @@ esp_err_t nvs_flash_init(void) {
 
 esp_err_t nvs_flash_init_partition(const char *part_name) {
     (void)part_name;
-    return ESP_OK;
+    return s_init_error;
 }
 
 esp_err_t nvs_open(const char *namespace_name, nvs_open_mode_t open_mode,
@@ -286,7 +288,19 @@ static void test_reset_clears_endpoints_before_credentials(void) {
     }
 }
 
+static void test_init_reports_failure_only_when_configured(void) {
+    fake_reset();
+    CHECK(config_store_init(), "a clean NVS init should succeed");
+#if CONFIG_HOMEHUB_NVS_FAIL_DISABLES_LINK
+    s_init_error = ESP_ERR_NVS_NO_FREE_PAGES;
+    CHECK(!config_store_init(), "a full NVS should be reported, not abort");
+    s_init_error = ESP_ERR_NVS_NEW_VERSION_FOUND;
+    CHECK(!config_store_init(), "a newer NVS format should be reported, not abort");
+#endif
+}
+
 int main(void) {
+    test_init_reports_failure_only_when_configured();
     test_lookup_is_tri_state();
     test_erase_propagates_commit_failure();
     test_setup_clear_verifies_credentials_and_preserves_identity();
