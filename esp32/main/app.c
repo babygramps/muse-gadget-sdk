@@ -2616,6 +2616,10 @@ void app_set_idle_check(bool (*idle)(void)) {
 
 void app_get_gadget_status(app_gadget_status_t *out) {
     if (!out) return;
+    if (runtime_disabled()) {
+        memset(out, 0, sizeof(*out));
+        return;
+    }
     out->paired = config_setup_complete() && config_is_provisioned();
     out->connected = noise_ctrl_is_connected();
     out->setup_window_open = !out->paired && atomic_load(&s_setup_advertising);

@@ -95,12 +95,12 @@ class LinkConfigStoreHarnessTest(unittest.TestCase):
             "bool app_wifi_forget(",
             "app_wifi_join_t app_wifi_join_saved(",
             "bool app_wifi_nap(",
-            "bool app_hatch_vm_credentials(",
             "void app_ble_companion_set(",
             "bool app_confirm_pairing_press(",
             "void app_reset_setup_async(",
             "void app_open_setup_window(",
             "void app_request_unpair(",
+            "void app_get_gadget_status(",
         ]
         for signature in entry_points:
             with self.subTest(entry_point=signature):

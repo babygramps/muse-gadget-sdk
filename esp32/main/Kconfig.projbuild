@@ -412,7 +412,9 @@ menu "ESP32 Device SDK"
             When the default NVS partition cannot be initialized, app_run()
             logs it and returns instead of aborting, and the app_* entry points
             become no-ops. This also covers NVS encryption that the eFuse
-            state cannot support. For firmware whose
+            state cannot support. With MUSE_ENABLED the two Muse tasks started
+            before app_run() stay blocked until reboot (about 14 KB of RAM).
+            For firmware whose
             enclosing project keeps working without the gadget; on a
             standalone gadget the abort (and reboot) stays the better choice.
 
