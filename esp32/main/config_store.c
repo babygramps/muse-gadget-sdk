@@ -28,7 +28,10 @@ static const char *TAG = "link.config";
 static const char *NS = "homehub";
 static const char *SETUP_COMPLETE_KEY = "setup_complete";
 
-static bool nvs_encryption_possible(void) {
+// usable is false only with CONFIG_HOMEHUB_NVS_FAIL_DISABLES_LINK, when the
+// eFuse state cannot support the configured NVS encryption (otherwise: abort).
+static bool nvs_encryption_possible(bool *usable) {
+    *usable = true;
 #ifndef CONFIG_NVS_ENCRYPTION
     ESP_LOGI(TAG, "NVS encryption not compiled in");
     return false;
@@ -43,7 +46,12 @@ static bool nvs_encryption_possible(void) {
     if (esp_efuse_read_field_bit(ESP_EFUSE_WR_DIS_RD_DIS)) {
         ESP_LOGE(TAG, "NVS encryption is configured but the eFuse state cannot "
                  "support it; refusing to fall back to plaintext");
+#if CONFIG_HOMEHUB_NVS_FAIL_DISABLES_LINK
+        *usable = false;
+        return false;
+#else
         abort();
+#endif
     }
     ESP_LOGI(TAG, "eFuse read-protection available; HMAC key will be generated");
     return true;
@@ -51,7 +59,11 @@ static bool nvs_encryption_possible(void) {
 }
 
 bool config_store_init(void) {
-    bool encrypted = nvs_encryption_possible();
+    bool usable;
+    bool encrypted = nvs_encryption_possible(&usable);
+    if (!usable) {
+        return false;
+    }
     ESP_LOGI(TAG, "NVS mode: %s", encrypted ? "encrypted" : "plaintext");
     esp_err_t err = encrypted
         ? nvs_flash_init()

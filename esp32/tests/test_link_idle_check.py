@@ -107,6 +107,7 @@ API_FAKES = r"""
 #include <stdio.h>
 #include <string.h>
 #include "app.h"
+static bool runtime_disabled(void) { return false; }
 #define ESP_LOGW(tag, ...) ((void)(tag), (void)sizeof(printf(__VA_ARGS__)))
 #define pdPASS 1
 typedef void (*TaskFunction_t)(void *);

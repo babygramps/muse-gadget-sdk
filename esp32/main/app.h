@@ -24,6 +24,9 @@
 extern "C" {
 #endif
 
+// With CONFIG_HOMEHUB_NVS_FAIL_DISABLES_LINK, app_run() returns early when NVS
+// cannot be initialized; every other app_* call below is then a no-op (false,
+// or APP_WIFI_FAILED), and app_get_gadget_status() reports an unpaired gadget.
 void app_run(void);
 
 // How joining one of the saved Wi-Fi networks went.

@@ -33,7 +33,14 @@ typedef enum {
 #define ESP_ERR_NVS_NO_FREE_PAGES 0x110d
 #define ESP_ERR_NVS_NEW_VERSION_FOUND 0x1110
 
+#ifdef LINK_FAKE_ERROR_CHECK_HOOK
+// The test supplies fake_error_check_failed(); it sees every checked result.
+void fake_error_check_failed(esp_err_t err);
+#define ESP_ERROR_CHECK(expr) do { esp_err_t err_rc_ = (expr); \
+    if (err_rc_ != ESP_OK) fake_error_check_failed(err_rc_); } while (0)
+#else
 #define ESP_ERROR_CHECK(expr) do { (void)(expr); } while (0)
+#endif
 
 esp_err_t nvs_open(const char *namespace_name, nvs_open_mode_t open_mode,
                    nvs_handle_t *out_handle);

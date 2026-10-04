@@ -133,6 +133,13 @@ static int64_t s_vm_auth_refresh_interval_us = VM_AUTH_REFRESH_RETRY_INTERVAL_US
 static uint8_t s_vm_auth_refusals = 0;
 static bool s_vm_auth_refresh_pending = false;
 static atomic_bool s_setup_reset_pending = ATOMIC_VAR_INIT(false);
+// Set when CONFIG_HOMEHUB_NVS_FAIL_DISABLES_LINK turned the runtime off at
+// boot. The public entry points then do nothing: the subsystems they drive
+// were never initialized.
+static atomic_bool s_runtime_disabled = ATOMIC_VAR_INIT(false);
+static bool runtime_disabled(void) {
+    return atomic_load(&s_runtime_disabled);
+}
 static bool s_ble_started = false;
 static bool s_ota_pending_verify = false;
 static uint32_t s_confirm_generation = 0;
@@ -2248,6 +2255,7 @@ static void on_button_long_press(void) {
 // ---- Muse hooks (app.h) -----------------------------------------------------
 
 void app_wifi_set_credentials(const char *ssid, const char *password, bool hidden) {
+    if (runtime_disabled()) return;
     if (!ssid || !ssid[0]) {
         wifi_known_forget_all();
         ui_set_wifi(NULL);
@@ -2259,6 +2267,7 @@ void app_wifi_set_credentials(const char *ssid, const char *password, bool hidde
 }
 
 bool app_wifi_forget(const char *ssid) {
+    if (runtime_disabled()) return false;
     return wifi_known_forget(ssid);
 }
 
@@ -2311,6 +2320,7 @@ static void muse_heartbeat_pause(void) {
 }
 
 app_wifi_join_t app_wifi_join_saved(int timeout_ms, bool first_only) {
+    if (runtime_disabled()) return APP_WIFI_FAILED;
     if (!operation_gate_take(0, "Muse Wi-Fi connect")) return APP_WIFI_BUSY;
     s_muse_napping = false;
 
@@ -2340,6 +2350,7 @@ int64_t app_wifi_none_nearby_at(void) {
 }
 
 bool app_wifi_nap(void) {
+    if (runtime_disabled()) return false;
     if (!operation_gate_take(0, "Muse Wi-Fi nap")) return false;
     s_muse_resume_vm = s_muse_resume_vm || noise_ctrl_is_running();
     disconnect_vm_transports();
@@ -2443,6 +2454,7 @@ static void hatch_vm_task(void *arg) {
 
 bool app_hatch_vm_credentials(const char *want_vm, char *vm_id, size_t id_cap,
                               char *vm_name, size_t name_cap, char **vm_token) {
+    if (runtime_disabled()) return false;
     hatch_vm_request_t req = {
         .want_vm = want_vm, .vm_id = vm_id, .id_cap = id_cap,
         .vm_name = vm_name, .name_cap = name_cap,
@@ -2459,12 +2471,14 @@ bool app_hatch_vm_credentials(const char *want_vm, char *vm_id, size_t id_cap,
 
 #if CONFIG_MUSE_ENABLED
 void app_ble_companion_set(bool advertise) {
+    if (runtime_disabled()) return;
     if (advertise) start_ble_setup_server_if_needed();
     ble_server_set_companion_advertising(advertise);
     if (config_setup_complete()) ui_set_ble(advertise ? "companion" : "off");
 }
 
 bool app_confirm_pairing_press(void) {
+    if (runtime_disabled()) return false;
     factory_test_on_button_press();
     if (!link_pairing_confirmation_required() || !ble_server_has_connection()) {
         return false;
@@ -2485,6 +2499,7 @@ static void reset_setup_task(void *arg) {
 }
 
 void app_reset_setup_async(void) {
+    if (runtime_disabled()) return;
     if (xTaskCreate(reset_setup_task, "muse_reset", 4096, NULL, 4, NULL) != pdPASS) {
         atomic_store_explicit(&s_setup_reset_pending, true, memory_order_release);
     }
@@ -2614,6 +2629,7 @@ static void host_setup_window_task(void *arg) {
 }
 
 void app_open_setup_window(void) {
+    if (runtime_disabled()) return;
     if (config_setup_complete()) return;
     if (xTaskCreate(host_setup_window_task, "setup_open", 4096, NULL, 4, NULL)
         != pdPASS) {
@@ -2629,6 +2645,7 @@ static void host_unpair_task(void *arg) {
 }
 
 void app_request_unpair(void) {
+    if (runtime_disabled()) return;
     if (!config_setup_complete() && !config_is_provisioned()) return;
     if (xTaskCreate(host_unpair_task, "host_unpair", 4096, NULL, 4, NULL)
         != pdPASS) {
@@ -2680,6 +2697,7 @@ void app_run(void) {
         // identity or pairing, so the device runs on without the gadget
         // runtime instead of aborting into a boot loop.
         ESP_LOGE(TAG, "storage unavailable; gadget runtime off until the next boot");
+        atomic_store(&s_runtime_disabled, true);
         return;
     }
     wifi_known_init();

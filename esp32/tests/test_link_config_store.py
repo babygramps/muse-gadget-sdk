@@ -34,7 +34,10 @@ class LinkConfigStoreHarnessTest(unittest.TestCase):
         if not cc or shutil.which(cc[0]) is None:
             raise unittest.SkipTest("C compiler not available")
 
-        for flags in ([], ["-DCONFIG_HOMEHUB_NVS_FAIL_DISABLES_LINK=1"]):
+        for flags in (
+            ["-DLINK_FAKE_ERROR_CHECK_HOOK=1"],
+            ["-DLINK_FAKE_ERROR_CHECK_HOOK=1", "-DCONFIG_HOMEHUB_NVS_FAIL_DISABLES_LINK=1"],
+        ):
             with self.subTest(flags=flags), tempfile.TemporaryDirectory() as tmpdir:
                 binary = Path(tmpdir) / "link_config_store_harness"
                 compile_proc = subprocess.run(
@@ -83,6 +86,27 @@ class LinkConfigStoreHarnessTest(unittest.TestCase):
         guard = body.index("if (!config_store_init()) {")
         self.assertLess(guard, body.index("wifi_known_init();"))
         self.assertIn("return;", body[guard:body.index("wifi_known_init();")])
+        self.assertIn("atomic_store(&s_runtime_disabled, true);", body[guard:body.index("wifi_known_init();")])
+
+    def test_public_entry_points_are_inert_when_the_runtime_is_disabled(self) -> None:
+        app = (ROOT / "main" / "app.c").read_text()
+        entry_points = [
+            "void app_wifi_set_credentials(",
+            "bool app_wifi_forget(",
+            "app_wifi_join_t app_wifi_join_saved(",
+            "bool app_wifi_nap(",
+            "bool app_hatch_vm_credentials(",
+            "void app_ble_companion_set(",
+            "bool app_confirm_pairing_press(",
+            "void app_reset_setup_async(",
+            "void app_open_setup_window(",
+            "void app_request_unpair(",
+        ]
+        for signature in entry_points:
+            with self.subTest(entry_point=signature):
+                start = app.index(signature)
+                opening = app[app.index("{", start):][:200]
+                self.assertIn("if (runtime_disabled())", opening)
 
 if __name__ == "__main__":
     unittest.main()

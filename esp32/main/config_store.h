@@ -36,7 +36,7 @@ typedef enum {
 } config_key_lookup_t;
 
 // False only with CONFIG_HOMEHUB_NVS_FAIL_DISABLES_LINK, when NVS could not be
-// initialized; otherwise an NVS error aborts.
+// initialized or its encryption is unusable; otherwise such errors abort.
 bool config_store_init(void);
 
 bool config_get_str(const char *key, char *out, size_t buf_size);

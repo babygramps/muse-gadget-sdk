@@ -56,6 +56,12 @@ static const char *s_get_error_key;
 static const char *s_commit_error_key;
 static bool s_require_endpoints_erased_first;
 static esp_err_t s_init_error;
+static int s_abort_count;
+
+void fake_error_check_failed(esp_err_t err) {
+    (void)err;
+    s_abort_count++;
+}
 
 static fake_entry_t *find_entry(const char *key) {
     for (size_t i = 0; i < MAX_ENTRIES; i++) {
@@ -92,6 +98,7 @@ static void fake_reset(void) {
     s_commit_error_key = NULL;
     s_require_endpoints_erased_first = false;
     s_init_error = ESP_OK;
+    s_abort_count = 0;
 }
 
 esp_err_t nvs_flash_init(void) {
@@ -296,6 +303,16 @@ static void test_init_reports_failure_only_when_configured(void) {
     CHECK(!config_store_init(), "a full NVS should be reported, not abort");
     s_init_error = ESP_ERR_NVS_NEW_VERSION_FOUND;
     CHECK(!config_store_init(), "a newer NVS format should be reported, not abort");
+    CHECK(s_abort_count == 0, "the option must not abort on an NVS error");
+    s_init_error = ESP_OK;
+    CHECK(config_store_init(), "NVS that recovers should initialize again");
+#else
+    s_init_error = ESP_ERR_NVS_NO_FREE_PAGES;
+    (void)config_store_init();
+    CHECK(s_abort_count == 1, "without the option an NVS error must abort as before");
+    s_init_error = ESP_OK;
+    s_abort_count = 0;
+    CHECK(config_store_init() && s_abort_count == 0, "a clean init must not abort");
 #endif
 }
 
