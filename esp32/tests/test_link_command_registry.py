@@ -148,6 +148,8 @@ REGISTER_PREAMBLE = r"""
 #include "command_registry.h"
 #include "esp_app_desc.h"
 #define nullptr NULL
+#define CONFIG_HOMEHUB_DEVICE_FAMILY "homehub"
+#define CONFIG_HOMEHUB_MODEL_ID "smoker"
 bool ota_is_enabled(void) { return false; }
 static esp_app_desc_t app = { .version = "1.0.0" };
 const esp_app_desc_t *esp_app_get_description(void) { return &app; }
@@ -252,6 +254,7 @@ class LinkCommandRegistryTest(unittest.TestCase):
             )
         self.assertGreater(len(output), 12000)
         params = json.loads(output)["params"]
+        self.assertEqual((params["device_family"], params["model_id"]), ("homehub", "smoker"))
         self.assertIn("device.health", params["commands_v2"])
         self.assertEqual(params["commands_v2"]["smoker.command_23"]["timeout_ms"], 20000)
 

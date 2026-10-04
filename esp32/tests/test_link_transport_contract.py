@@ -132,8 +132,11 @@ class LinkTransportContractTest(unittest.TestCase):
         upgrade = _function_body(source, "static noise_upgrade_result_t ws_upgrade(")
 
         self.assertIn('"link.register"', register)
-        self.assertIn('"device_family", "link"', register)
-        self.assertIn('"model_id", "esp-link"', register)
+        self.assertIn('"device_family", CONFIG_HOMEHUB_DEVICE_FAMILY', register)
+        self.assertIn('"model_id", CONFIG_HOMEHUB_MODEL_ID', register)
+        kconfig = (ROOT / "main" / "Kconfig.projbuild").read_text()
+        self.assertRegex(kconfig, r'config HOMEHUB_DEVICE_FAMILY\s+string "[^"]*"\s+default "link"')
+        self.assertRegex(kconfig, r'config HOMEHUB_MODEL_ID\s+string "[^"]*"\s+default "esp-link"')
         self.assertIn('"device.health"', register)
         self.assertIn('"device.discover"', register)
         self.assertIn('"timeout_ms"', register)

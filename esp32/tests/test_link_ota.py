@@ -164,6 +164,8 @@ int main(void) {
 #include "esp_app_desc.h"
 #define nullptr NULL
 #define CONFIG_HOMEHUB_TUNNEL 1
+#define CONFIG_HOMEHUB_DEVICE_FAMILY "link"
+#define CONFIG_HOMEHUB_MODEL_ID "esp-link"
 static bool enabled;
 bool ota_is_enabled(void) { return enabled; }
 static esp_app_desc_t app = { .version = "999.0.0" };
@@ -195,6 +197,8 @@ int main(void) {
                 self.assertIn("device.discover", commands)
                 self.assertEqual("device.ota" in commands, enabled)
                 self.assertEqual(params["version"], "999.0.0")
+                self.assertEqual(params["device_family"], "link")
+                self.assertEqual(params["model_id"], "esp-link")
 
 
 if __name__ == "__main__":

@@ -1244,8 +1244,8 @@ static char *build_register_json(void) {
     cJSON_AddStringToObject(params, "platform", "esp32");
     const esp_app_desc_t *desc = esp_app_get_description();
     cJSON_AddStringToObject(params, "version", desc ? desc->version : "unknown");
-    cJSON_AddStringToObject(params, "device_family", "link");
-    cJSON_AddStringToObject(params, "model_id", "esp-link");
+    cJSON_AddStringToObject(params, "device_family", CONFIG_HOMEHUB_DEVICE_FAMILY);
+    cJSON_AddStringToObject(params, "model_id", CONFIG_HOMEHUB_MODEL_ID);
     cJSON_AddBoolToObject(params, "is_wakeup_supported", false);
     cJSON *metadata = nullptr;
     add_register_metadata_string(&metadata, params, "network_ssid", wifi_ssid);

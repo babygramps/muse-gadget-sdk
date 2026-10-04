@@ -380,4 +380,19 @@ menu "ESP32 Device SDK"
             ignores ota_url. For firmware that changes only through its
             enclosing project's own update path.
 
+    config HOMEHUB_DEVICE_FAMILY
+        string "device_family in link.register"
+        default "link"
+        help
+            How the server classifies this gadget. Link builds send "link". A
+            project whose firmware the server must never offer to update can
+            send a family of its own. BLE pairing reports its own fixed model.
+
+    config HOMEHUB_MODEL_ID
+        string "model_id in link.register"
+        default "esp-link"
+        help
+            The model the server sees in link.register; see
+            HOMEHUB_DEVICE_FAMILY.
+
 endmenu
