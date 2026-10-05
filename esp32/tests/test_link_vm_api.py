@@ -69,6 +69,8 @@ class LinkVmApiAuthHarnessTest(unittest.TestCase):
             tmp = Path(tmpdir)
             binary = tmp / "link_vm_api_harness"
             sanitizer_flags = _sanitizer_flags(cc, tmp)
+            # vm_api.c includes sdk_token_log.h, which reads the default build's option.
+            (tmp / "sdkconfig.h").write_text("#define CONFIG_HOMEHUB_LOG_SDK_TOKEN_PREFIX 1\n")
             compile_cmd = [
                 *cc,
                 "-include",
@@ -80,6 +82,8 @@ class LinkVmApiAuthHarnessTest(unittest.TestCase):
                 "-g",
                 "-O1",
                 *sanitizer_flags,
+                "-I",
+                str(tmp),
                 "-I",
                 str(ROOT / "tests" / "link_fakes"),
                 "-I",

@@ -42,6 +42,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 
+#include "sdk_token_log.h"
 #include "pairing_signer_policy.h"
 #include "pairing_transcript.h"
 
@@ -1055,7 +1056,7 @@ static char *status_plain_json(const char *status) {
         return NULL;
     }
     if (s_sdk_token && strcmp(status, "pairing_confirmed") == 0) {
-        ESP_LOGI(TAG, "pairing_confirmed carries SDK token %.12s", s_sdk_token);
+        ESP_LOGI(TAG, "pairing_confirmed carries SDK token %.12s", sdk_token_log_text(s_sdk_token));
     }
     char *plain_json = cJSON_PrintUnformatted(plain);
     cJSON_Delete(plain);

@@ -427,4 +427,14 @@ menu "ESP32 Device SDK"
             instead: BLE stays stopped, without its memory released, until
             the next reboot, which the enclosing project chooses.
 
+    config HOMEHUB_LOG_SDK_TOKEN_PREFIX
+        bool "Log the first 12 characters of the SDK token"
+        default y
+        help
+            The boot banner, the pairing_confirmed message and the refresh
+            request log the first 12 characters of the SDK token (the hint
+            gadgets.muse.ai displays). With this off they log only that a
+            token is set, so no part of the token reaches a log. For firmware
+            whose logs must never contain any part of the token.
+
 endmenu
